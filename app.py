@@ -3,7 +3,8 @@ import pandas as pd
 import streamlit as st
 from fredapi import Fred
 import matplotlib.pyplot as plt
-
+import numpy as np
+import plotly.graph_objects as go
 st.set_page_config(page_title="Macro Dials v2", layout="wide")
 
 # -----------------------------
@@ -44,7 +45,54 @@ def score_thresholds(x: float, low: float, high: float, invert: bool = False) ->
         if x <= low:
             return -1
         return 0
+# =============================
+# Teil 2 Helpers
+# =============================
 
+def _to_weekly(s: pd.Series) -> pd.Series:
+    return s.resample("W-FRI").last().dropna()
+
+def _percentile_score(x: pd.Series, lookback: int = 520) -> float:
+    x = x.dropna()
+    if len(x) < 30:
+        return float("nan")
+    window = x.iloc[-lookback:] if len(x) > lookback else x
+    return float(window.rank(pct=True).iloc[-1] * 100.0)
+
+def make_gauge(title: str, value: float) -> go.Figure:
+    if value is None or (isinstance(value, float) and np.isnan(value)):
+        value = 0.0
+    fig = go.Figure(go.Indicator(
+        mode="gauge+number",
+        value=float(value),
+        number={"suffix": "%"},
+        title={"text": title},
+        gauge={
+            "axis": {"range": [0, 100]},
+            "steps": [
+                {"range": [0, 33], "color": "rgba(255,0,0,0.25)"},
+                {"range": [33, 66], "color": "rgba(255,255,0,0.25)"},
+                {"range": [66, 100], "color": "rgba(0,255,0,0.25)"},
+            ],
+            "bar": {"thickness": 0.25},
+        },
+    ))
+    fig.update_layout(height=260, margin=dict(l=10, r=10, t=50, b=10))
+    return fig
+
+def classify_regime(liq_score: float, risk_score: float):
+    if np.isnan(liq_score) or np.isnan(risk_score):
+        return "Unknown", "⚪"
+    liq_hi = liq_score >= 66
+    liq_lo = liq_score <= 33
+    risk_hi = risk_score >= 66
+    risk_lo = risk_score <= 33
+
+    if liq_hi and risk_lo:
+        return "Risk-On", "🟢"
+    if liq_lo and risk_hi:
+        return "Risk-Off", "🔴"
+    return "Neutral", "🟡"
 def pill(score: int) -> str:
     return "🟢 Tailwind" if score == 1 else "🟡 Neutral" if score == 0 else "🔴 Headwind"
 
@@ -146,3 +194,66 @@ with right:
     plot_series("Unemployment Rate (UNRATE)", unrate)
 
 st.info("Nächster Schritt: Liquidity-Dial (Fed Balance Sheet, RRP/TGA Proxy), Risk-Dial (VIX/HY), und eine farbige Matrix wie im Screenshot.")
+st.markdown("---")
+st.header("Teil 2: Liquidity-Dial + Risk-Dial + Matrix")
+
+# --- Daten holen
+walcl = fred_series(api_key, walcl_id)
+rrp   = fred_series(api_key, rrp_id)
+tga   = fred_series(api_key, tga_id)
+
+vix = fred_series(api_key, vix_id)
+hy  = fred_series(api_key, hy_id)
+
+# --- Weekly
+walcl_w = _to_weekly(walcl)
+rrp_w   = _to_weekly(rrp)
+tga_w   = _to_weekly(tga)
+
+# Liquidity Impulse (ΔWALCL - ΔRRP - ΔTGA), geglättet
+liq_imp = (walcl_w.diff() - rrp_w.diff() - tga_w.diff()).dropna()
+liq_imp_smooth = liq_imp.rolling(8).mean()
+
+lb = int(lookback_years * 52)
+liq_score = _percentile_score(liq_imp_smooth, lookback=lb)
+
+# Risk: VIX + HY (höher = riskiger)
+risk_df = pd.DataFrame({
+    "vix": _to_weekly(vix),
+    "hy":  _to_weekly(hy),
+}).dropna()
+
+# simple Combo: Percentile des aktuellen Levels (stabiler als pct_change)
+risk_combo = (risk_df["vix"].rank(pct=True) + risk_df["hy"].rank(pct=True)) / 2.0
+risk_score = float((risk_combo.iloc[-lb:] if len(risk_combo) > lb else risk_combo).iloc[-1] * 100.0)
+
+regime, dot = classify_regime(liq_score, risk_score)
+
+# --- Anzeigen
+c1, c2, c3 = st.columns([1, 1, 1])
+with c1:
+    st.plotly_chart(make_gauge("Liquidity (Percentile)", liq_score), use_container_width=True)
+with c2:
+    st.plotly_chart(make_gauge("Risk (Percentile)", risk_score), use_container_width=True)
+with c3:
+    st.metric("Regime (Teil 2)", f"{dot} {regime}")
+
+st.subheader("Liquidity × Risk Matrix")
+st.caption("🟩 Risk-On • 🟥 Risk-Off • 🟨 Neutral")
+
+liq_hi = liq_score >= 50
+risk_hi = risk_score >= 50
+
+matrix = {
+    "Risk Low": {"Liq Low": "🟨", "Liq High": "🟩"},
+    "Risk High": {"Liq Low": "🟥", "Liq High": "🟨"},
+}
+st.table(matrix)
+
+# optional: kleine Zeitreihe der Liquidity Impulse
+st.subheader("Liquidity Impulse (ΔWALCL − ΔRRP − ΔTGA)")
+fig, ax = plt.subplots(figsize=(8, 3))
+ax.plot(liq_imp_smooth.index, liq_imp_smooth.values)
+ax.set_title("Weekly Liquidity Impulse (8W MA)")
+ax.grid(True, alpha=0.3)
+st.pyplot(fig)
