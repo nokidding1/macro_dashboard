@@ -209,6 +209,7 @@ rrp_id   = "RRPONTSYD"
 tga_id   = "WTREGEN"
 vix_id   = "VIXCLS"
 hy_id    = "BAMLH0A0HYM2"
+lookback_years = 5
 # --- Daten holen
 walcl = fred_series(api_key, walcl_id)
 rrp   = fred_series(api_key, rrp_id)
