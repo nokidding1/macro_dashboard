@@ -17,7 +17,14 @@ def fred_series(api_key: str, series_id: str) -> pd.Series:
     s.index = pd.to_datetime(s.index)
     s = pd.Series(s).dropna().sort_index()
     return s
+def _to_weekly(s: pd.Series) -> pd.Series:
+    return s.resample("W").last()
 
+def _percentile_score(s: pd.Series, lookback: int = 520) -> float:
+    if s is None or len(s) < 10:
+        return 50.0
+    s2 = s.dropna().iloc[-lookback:]
+    return float(s2.rank(pct=True).iloc[-1] * 100.0)
 def latest_value(s: pd.Series):
     if s is None or len(s) == 0:
         return None
