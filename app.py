@@ -203,7 +203,12 @@ with right:
 st.info("Nächster Schritt: Liquidity-Dial (Fed Balance Sheet, RRP/TGA Proxy), Risk-Dial (VIX/HY), und eine farbige Matrix wie im Screenshot.")
 st.markdown("---")
 st.header("Teil 2: Liquidity-Dial + Risk-Dial + Matrix")
-
+# --- Serien IDs
+walcl_id = "WALCL"
+rrp_id   = "RRPONTSYD"
+tga_id   = "WTREGEN"
+vix_id   = "VIXCLS"
+hy_id    = "BAMLH0A0HYM2"
 # --- Daten holen
 walcl = fred_series(api_key, walcl_id)
 rrp   = fred_series(api_key, rrp_id)
