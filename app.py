@@ -6,7 +6,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 import plotly.graph_objects as go
 st.set_page_config(page_title="Macro Dials v2", layout="wide")
-st.write(" APP STARTET - TOP TEST")
+st.markdown("---")
+st.header("RECESSION TEST (oben)")
+st.markdown("---")
 # Plot helper
 def plot_series(title: str, s: pd.Series):
     fig, ax = plt.subplots()
@@ -376,7 +378,7 @@ def recession_panel():
     with st.expander("Daten anzeigen"):
         st.dataframe(df.tail(50))
         
-    st.markdown("---")
-    st.write ("RECESSION BLOCK START")
-    recession_panel()
-    st.write("RECESSION BLOCK END")
+st.markdown("---")
+st.header("Rezessions-Indokatoren")
+recession_panel()
+st.markdown("---")
