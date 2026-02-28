@@ -319,6 +319,7 @@ def _last_valid(s: pd.Series):
 
 
 def recession_panel():
+    st.write("Test - recession panel läuft")
     st.subheader("USA Rezessions-Indikatoren")
 
     with st.sidebar:
@@ -373,4 +374,7 @@ def recession_panel():
 
     with st.expander("Daten anzeigen"):
         st.dataframe(df.tail(50))
+    st.markdown("---")
+    st.header("🇺🇸 Rezessions-Indikatoren")
+    recession_panel()
     recession_panel()
