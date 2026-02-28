@@ -270,3 +270,95 @@ ax.plot(liq_imp_smooth.index, liq_imp_smooth.values)
 ax.set_title("Weekly Liquidity Impulse (8W MA)")
 ax.grid(True, alpha=0.3)
 st.pyplot(fig)
+import streamlit as st
+import pandas as pd
+import numpy as np
+from fredapi import Fred
+
+# ---------- helpers ----------
+@st.cache_resource
+def get_fred_client():
+    return Fred(api_key=st.secrets["FRED_API_KEY"])
+
+@st.cache_data(ttl=60 * 60 * 6)  # 6h cache
+def fred_series(series_id: str, start: str = "1990-01-01") -> pd.Series:
+    fred = get_fred_client()
+    s = fred.get_series(series_id, observation_start=start)
+    s.index = pd.to_datetime(s.index)
+    s = pd.to_numeric(s, errors="coerce")
+    s.name = series_id
+    return s.dropna()
+
+def sahm_rule(unrate: pd.Series) -> pd.Series:
+    """
+    Sahm Rule signal: current 3-month avg unemployment rate
+    minus minimum 3-month avg over previous 12 months.
+    Recession trigger often discussed at >= 0.50 percentage points.
+    """
+    unrate = unrate.sort_index()
+    u3 = unrate.rolling(3).mean()
+    u3_min_12m = u3.rolling(12).min()
+    sahm = u3 - u3_min_12m
+    sahm.name = "SAHM"
+    return sahm.dropna()
+
+def make_recession_df(start="1990-01-01") -> pd.DataFrame:
+    dgs10 = fred_series("DGS10", start)
+    dgs2  = fred_series("DGS2", start)
+    spread = (dgs10 - dgs2).rename("10Y-2Y Spread")
+
+    unrate = fred_series("UNRATE", start).rename("Unemployment Rate")
+    sahm = sahm_rule(unrate)
+
+    icsa = fred_series("ICSA", start).rename("Initial Claims")
+    lei = fred_series("USSLIND", start).rename("Leading Index (USSLIND)")
+
+    df = pd.concat([spread, unrate, sahm, icsa, lei], axis=1).sort_index()
+    return df
+
+# ---------- UI ----------
+def recession_panel():
+    st.subheader("USA Rezessions-Indikatoren")
+
+    with st.sidebar:
+        start = st.date_input("Startdatum", value=pd.to_datetime("2000-01-01")).strftime("%Y-%m-%d")
+
+    df = make_recession_df(start=start)
+
+    # KPIs (letzter Wert)
+    latest = df.dropna(how="all").iloc[-1]
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("10Y-2Y Spread", f"{latest['10Y-2Y Spread']:.2f} %-Pkt")
+    c2.metric("Arbeitslosigkeit (UNRATE)", f"{latest['Unemployment Rate']:.1f} %")
+    c3.metric("Sahm Rule", f"{latest['SAHM']:.2f} %-Pkt")
+    c4.metric("Initial Claims", f"{int(latest['Initial Claims']):,}".replace(",", "'"))
+
+    # einfache Ampel-Logik (nur Orientierung!)
+    risk_notes = []
+    if latest["10Y-2Y Spread"] < 0:
+        risk_notes.append("🔴 Zinskurve invertiert (Spread < 0)")
+    else:
+        risk_notes.append("🟢 Zinskurve nicht invertiert")
+
+    if latest["SAHM"] >= 0.50:
+        risk_notes.append("🔴 Sahm Rule >= 0.50 (klassischer Rezessions-Trigger)")
+    elif latest["SAHM"] >= 0.35:
+        risk_notes.append("🟠 Sahm Rule erhöht (>= 0.35)")
+    else:
+        risk_notes.append("🟢 Sahm Rule niedrig")
+
+    st.write("**Signal-Check (grob):**")
+    st.write("\n".join(risk_notes))
+
+    st.divider()
+
+    st.write("### Charts")
+    st.line_chart(df[["10Y-2Y Spread"]].dropna())
+    st.line_chart(df[["Unemployment Rate", "SAHM"]].dropna())
+    st.line_chart(df[["Initial Claims"]].dropna())
+    st.line_chart(df[["Leading Index (USSLIND)"]].dropna())
+
+    with st.expander("Daten anzeigen"):
+        st.dataframe(df.tail(50))
+
+# In deiner main.py dann recession_panel() aufrufen
