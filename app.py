@@ -375,7 +375,8 @@ def recession_panel():
 
     with st.expander("Daten anzeigen"):
         st.dataframe(df.tail(50))
+        
     st.markdown("---")
-    st.header("🇺🇸 Rezessions-Indikatoren")
+    st.write ("RECESSION BLOCK START")
     recession_panel()
-    recession_panel()
+    st.write("RECESSION BLOCK END")
