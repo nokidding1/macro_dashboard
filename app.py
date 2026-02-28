@@ -280,6 +280,9 @@ def fred_series(series_id: str, start: str = "1990-01-01") -> pd.Series:
     s = pd.to_numeric(s, errors="coerce")
     s.name = series_id
     return s.dropna()
+# ------------------------------
+# USA Recession Indicators
+# ------------------------------
 
 def sahm_rule(unrate: pd.Series) -> pd.Series:
     """
@@ -287,71 +290,79 @@ def sahm_rule(unrate: pd.Series) -> pd.Series:
     minus minimum 3-month avg over previous 12 months.
     Recession trigger often discussed at >= 0.50 percentage points.
     """
-    unrate = unrate.sort_index()
+    unrate = unrate.dropna().sort_index()
     u3 = unrate.rolling(3).mean()
     u3_min_12m = u3.rolling(12).min()
     sahm = u3 - u3_min_12m
     sahm.name = "SAHM"
     return sahm.dropna()
 
-def make_recession_df(start="1990-01-01") -> pd.DataFrame:
-    dgs10 = fred_series("DGS10", start)
-    dgs2  = fred_series("DGS2", start)
+
+def make_recession_df(start: str = "1990-01-01") -> pd.DataFrame:
+    dgs10 = fred_series("DGS10", start=start)
+    dgs2  = fred_series("DGS2", start=start)
     spread = (dgs10 - dgs2).rename("10Y-2Y Spread")
 
-    unrate = fred_series("UNRATE", start).rename("Unemployment Rate")
+    unrate = fred_series("UNRATE", start=start).rename("Unemployment Rate")
     sahm = sahm_rule(unrate)
 
-    icsa = fred_series("ICSA", start).rename("Initial Claims")
-    lei = fred_series("USSLIND", start).rename("Leading Index (USSLIND)")
+    icsa = fred_series("ICSA", start=start).rename("Initial Claims")
+    lei  = fred_series("USSLIND", start=start).rename("Leading Index (USSLIND)")
 
     df = pd.concat([spread, unrate, sahm, icsa, lei], axis=1).sort_index()
     return df
 
-# ---------- UI ----------
+
+def _last_valid(s: pd.Series):
+    s = s.dropna()
+    return s.iloc[-1] if len(s) else np.nan
+
+
 def recession_panel():
     st.subheader("USA Rezessions-Indikatoren")
 
     with st.sidebar:
-        start = st.date_input("Startdatum", value=pd.to_datetime("2000-01-01")).strftime("%Y-%m-%d")
+        start_dt = st.date_input("Startdatum", value=pd.to_datetime("2000-01-01"))
+    start = pd.to_datetime(start_dt).strftime("%Y-%m-%d")
 
     df = make_recession_df(start=start)
 
-    # KPIs (letzter Wert)
-    # KPIs (letzter gültiger Wert pro Serie)
-last_spread = df["10Y-2Y Spread"].dropna().iloc[-1] if df["10Y-2Y Spread"].dropna().size else np.nan
-last_unrate = df["Unemployment Rate"].dropna().iloc[-1] if df["Unemployment Rate"].dropna().size else np.nan
-last_sahm   = df["SAHM"].dropna().iloc[-1] if df["SAHM"].dropna().size else np.nan
-last_icsa   = df["Initial Claims"].dropna().iloc[-1] if df["Initial Claims"].dropna().size else np.nan
+    # letzte gültige Werte pro Serie (robust gegen NaN)
+    last_spread = _last_valid(df["10Y-2Y Spread"])
+    last_unrate = _last_valid(df["Unemployment Rate"])
+    last_sahm   = _last_valid(df["SAHM"])
+    last_icsa   = _last_valid(df["Initial Claims"])
 
-def fmt_num(x, digits=2, suffix=""):
-    return "n/a" if pd.isna(x) else f"{x:.{digits}f}{suffix}"
+    def fmt_num(x, digits=2, suffix=""):
+        return "n/a" if pd.isna(x) else f"{x:.{digits}f}{suffix}"
 
-def fmt_int(x):
-    return "n/a" if pd.isna(x) else f"{int(x):,}".replace(",", "'")
+    def fmt_int(x):
+        return "n/a" if pd.isna(x) else f"{int(x):,}".replace(",", " ")
 
-c1, c2, c3, c4 = st.columns(4)
-c1.metric("10Y-2Y Spread", fmt_num(last_spread, 2, " %-Pkt"))
-c2.metric("Arbeitslosigkeit (UNRATE)", fmt_num(last_unrate, 1, " %"))
-c3.metric("Sahm Rule", fmt_num(last_sahm, 2, " %-Pkt"))
-c4.metric("Initial Claims", fmt_int(last_icsa))
-# einfache Ampel-Logik (nur Orientierung!)
-risk_notes = []
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("10Y-2Y Spread", fmt_num(last_spread, 2, " %-Pkt"))
+    c2.metric("Arbeitslosigkeit (UNRATE)", fmt_num(last_unrate, 1, " %"))
+    c3.metric("Sahm Rule", fmt_num(last_sahm, 2, " %-Pkt"))
+    c4.metric("Initial Claims", fmt_int(last_icsa))
 
-if last_spread < 0:
-    risk_notes.append("🔴 Zinskurve invertiert (Spread < 0)")
-else:
-    risk_notes.append("🟢 Zinskurve nicht invertiert")
+    # einfache Ampel-Logik (nur Orientierung!)
+    risk_notes = []
 
-if last_sahm >= 0.50:
-    risk_notes.append("🔴 Sahm Rule >= 0.50 (klassischer Rezessions-Trigger)")
-elif last_sahm >= 0.35:
-    risk_notes.append("🟠 Sahm Rule erhöht (>= 0.35)")
-else:
-    risk_notes.append("🟢 Sahm Rule niedrig")
+    if not pd.isna(last_spread) and last_spread < 0:
+        risk_notes.append("🔴 Zinskurve invertiert (Spread < 0)")
+    else:
+        risk_notes.append("🟢 Zinskurve nicht invertiert")
 
-st.write("**Signal-Check (grob):**")
-st.write("\n".join(risk_notes))
+    if not pd.isna(last_sahm) and last_sahm >= 0.50:
+        risk_notes.append("🔴 Sahm Rule >= 0.50 (klassischer Rezessions-Trigger)")
+    elif not pd.isna(last_sahm) and last_sahm >= 0.35:
+        risk_notes.append("🟠 Sahm Rule erhöht (>= 0.35)")
+    else:
+        risk_notes.append("🟢 Sahm Rule niedrig")
+
+    st.write("**Signal-Check (grob):**")
+    st.write("\n".join(risk_notes))
+
     st.divider()
 
     st.write("### Charts")
@@ -362,6 +373,4 @@ st.write("\n".join(risk_notes))
 
     with st.expander("Daten anzeigen"):
         st.dataframe(df.tail(50))
-
-# In deiner main.py dann recession_panel() aufrufen
-recession_panel ()
+    recession_panel()
