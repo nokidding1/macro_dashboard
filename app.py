@@ -6,7 +6,13 @@ import matplotlib.pyplot as plt
 import numpy as np
 import plotly.graph_objects as go
 st.set_page_config(page_title="Macro Dials v2", layout="wide")
-
+# Plot helper
+def plot_series(title: str, s: pd.Series):
+    fig, ax = plt.subplots()
+    ax.plot(s.index, s.values)
+    ax.set_title(title)
+    ax.grid(True, alpha=0.3)
+    st.pyplot(fig, clear_figure=True)
 # -----------------------------
 # Helpers
 # -----------------------------
@@ -182,15 +188,6 @@ regime = "🟢 Risk-On" if total >= 2 else "🟡 Transition" if total >= 0 else 
 c5.metric("Macro Regime", regime, f"Total Score: {total:+d}")
 
 st.divider()
-
-# Plot helper
-def plot_series(title: str, s: pd.Series):
-    fig, ax = plt.subplots()
-    ax.plot(s.index, s.values)
-    ax.set_title(title)
-    ax.grid(True, alpha=0.3)
-    st.pyplot(fig, clear_figure=True)
-
 left, right = st.columns(2)
 with left:
     plot_series("10Y Real Yield (DFII10)", real_yield)
