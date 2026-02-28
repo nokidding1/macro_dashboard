@@ -338,7 +338,6 @@ c1.metric("10Y-2Y Spread", fmt_num(last_spread, 2, " %-Pkt"))
 c2.metric("Arbeitslosigkeit (UNRATE)", fmt_num(last_unrate, 1, " %"))
 c3.metric("Sahm Rule", fmt_num(last_sahm, 2, " %-Pkt"))
 c4.metric("Initial Claims", fmt_int(last_icsa))
-
     # einfache Ampel-Logik (nur Orientierung!)
     risk_notes = []
     if last_spread < 0:
