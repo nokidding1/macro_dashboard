@@ -270,11 +270,6 @@ ax.plot(liq_imp_smooth.index, liq_imp_smooth.values)
 ax.set_title("Weekly Liquidity Impulse (8W MA)")
 ax.grid(True, alpha=0.3)
 st.pyplot(fig)
-import streamlit as st
-import pandas as pd
-import numpy as np
-from fredapi import Fred
-
 # ---------- helpers ----------
 @st.cache_resource
 def get_fred_client():
