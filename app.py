@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import plotly.graph_objects as go
 st.set_page_config(page_title="Macro Dials v2", layout="wide")
+st.write(" APP STARTET - TOP TEST")
 # Plot helper
 def plot_series(title: str, s: pd.Series):
     fig, ax = plt.subplots()
