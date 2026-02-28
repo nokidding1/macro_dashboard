@@ -338,23 +338,23 @@ c1.metric("10Y-2Y Spread", fmt_num(last_spread, 2, " %-Pkt"))
 c2.metric("Arbeitslosigkeit (UNRATE)", fmt_num(last_unrate, 1, " %"))
 c3.metric("Sahm Rule", fmt_num(last_sahm, 2, " %-Pkt"))
 c4.metric("Initial Claims", fmt_int(last_icsa))
-    # einfache Ampel-Logik (nur Orientierung!)
-    risk_notes = []
-    if last_spread < 0:
-        risk_notes.append("🔴 Zinskurve invertiert (Spread < 0)")
-    else:
-        risk_notes.append("🟢 Zinskurve nicht invertiert")
+# einfache Ampel-Logik (nur Orientierung!)
+risk_notes = []
 
-    if last_sahm >= 0.50:
-        risk_notes.append("🔴 Sahm Rule >= 0.50 (klassischer Rezessions-Trigger)")
-    elif last_sahm >= 0.35:
-        risk_notes.append("🟠 Sahm Rule erhöht (>= 0.35)")
-    else:
-        risk_notes.append("🟢 Sahm Rule niedrig")
+if last_spread < 0:
+    risk_notes.append("🔴 Zinskurve invertiert (Spread < 0)")
+else:
+    risk_notes.append("🟢 Zinskurve nicht invertiert")
 
-    st.write("**Signal-Check (grob):**")
-    st.write("\n".join(risk_notes))
+if last_sahm >= 0.50:
+    risk_notes.append("🔴 Sahm Rule >= 0.50 (klassischer Rezessions-Trigger)")
+elif last_sahm >= 0.35:
+    risk_notes.append("🟠 Sahm Rule erhöht (>= 0.35)")
+else:
+    risk_notes.append("🟢 Sahm Rule niedrig")
 
+st.write("**Signal-Check (grob):**")
+st.write("\n".join(risk_notes))
     st.divider()
 
     st.write("### Charts")
