@@ -357,3 +357,4 @@ def recession_panel():
         st.dataframe(df.tail(50))
 
 # In deiner main.py dann recession_panel() aufrufen
+recession_panel ()
