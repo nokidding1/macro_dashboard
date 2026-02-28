@@ -321,23 +321,34 @@ def recession_panel():
     df = make_recession_df(start=start)
 
     # KPIs (letzter Wert)
-    latest = df.dropna(how="all").iloc[-1]
-    c1, c2, c3, c4 = st.columns(4)
-    c1.metric("10Y-2Y Spread", f"{latest['10Y-2Y Spread']:.2f} %-Pkt")
-    c2.metric("Arbeitslosigkeit (UNRATE)", f"{latest['Unemployment Rate']:.1f} %")
-    c3.metric("Sahm Rule", f"{latest['SAHM']:.2f} %-Pkt")
-    c4.metric("Initial Claims", f"{int(latest['Initial Claims']):,}".replace(",", "'"))
+    # KPIs (letzter gültiger Wert pro Serie)
+last_spread = df["10Y-2Y Spread"].dropna().iloc[-1] if df["10Y-2Y Spread"].dropna().size else np.nan
+last_unrate = df["Unemployment Rate"].dropna().iloc[-1] if df["Unemployment Rate"].dropna().size else np.nan
+last_sahm   = df["SAHM"].dropna().iloc[-1] if df["SAHM"].dropna().size else np.nan
+last_icsa   = df["Initial Claims"].dropna().iloc[-1] if df["Initial Claims"].dropna().size else np.nan
+
+def fmt_num(x, digits=2, suffix=""):
+    return "n/a" if pd.isna(x) else f"{x:.{digits}f}{suffix}"
+
+def fmt_int(x):
+    return "n/a" if pd.isna(x) else f"{int(x):,}".replace(",", "'")
+
+c1, c2, c3, c4 = st.columns(4)
+c1.metric("10Y-2Y Spread", fmt_num(last_spread, 2, " %-Pkt"))
+c2.metric("Arbeitslosigkeit (UNRATE)", fmt_num(last_unrate, 1, " %"))
+c3.metric("Sahm Rule", fmt_num(last_sahm, 2, " %-Pkt"))
+c4.metric("Initial Claims", fmt_int(last_icsa))
 
     # einfache Ampel-Logik (nur Orientierung!)
     risk_notes = []
-    if latest["10Y-2Y Spread"] < 0:
+    if last_spread < 0:
         risk_notes.append("🔴 Zinskurve invertiert (Spread < 0)")
     else:
         risk_notes.append("🟢 Zinskurve nicht invertiert")
 
-    if latest["SAHM"] >= 0.50:
+    if last_sahm >= 0.50:
         risk_notes.append("🔴 Sahm Rule >= 0.50 (klassischer Rezessions-Trigger)")
-    elif latest["SAHM"] >= 0.35:
+    elif last_sahm >= 0.35:
         risk_notes.append("🟠 Sahm Rule erhöht (>= 0.35)")
     else:
         risk_notes.append("🟢 Sahm Rule niedrig")
